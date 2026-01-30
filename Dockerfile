@@ -1,0 +1,76 @@
+# ================================
+# Multi-stage Dockerfile for ExcaliWeb
+# ================================
+
+# ============ Stage 1: Build Frontend ============
+FROM node:20-alpine AS client-builder
+
+WORKDIR /app/client
+
+# Copy client package files
+COPY client/package*.json ./
+
+# Install dependencies (including devDependencies for build)
+RUN npm ci
+
+# Copy client source
+COPY client/ ./
+
+# Build frontend
+RUN npm run build
+
+# ============ Stage 2: Build Backend ============
+FROM node:20-alpine AS server-builder
+
+WORKDIR /app/server
+
+# Copy server package files
+COPY server/package*.json ./
+
+# Install dependencies (including devDependencies for build)
+RUN npm ci
+
+# Copy server source
+COPY server/ ./
+
+# Build backend
+RUN npm run build
+
+# ============ Stage 3: Nginx + Node.js Production Image ============
+FROM node:20-alpine
+
+# Install nginx, supervisor, and wget for health check
+RUN apk add --no-cache nginx supervisor wget
+
+WORKDIR /app
+
+# Install production dependencies only for server
+COPY server/package*.json ./
+RUN npm ci --omit=dev
+
+# Copy built backend from builder
+COPY --from=server-builder /app/server/dist ./dist
+
+# Copy built frontend from builder to nginx html directory
+COPY --from=client-builder /app/client/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+RUN mkdir -p /etc/nginx/http.d && \
+    rm -f /etc/nginx/http.d/default.conf
+COPY nginx.conf /etc/nginx/http.d/excaliweb.conf
+
+# Copy supervisor configuration
+COPY supervisord.conf /etc/supervisord.conf
+
+# Create log directory
+RUN mkdir -p /var/log
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+
+# Start supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]

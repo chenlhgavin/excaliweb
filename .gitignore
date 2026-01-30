@@ -7,9 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+client/node_modules
+server/node_modules
+
+# Build outputs
 dist
 dist-ssr
+client/dist
+server/dist
 *.local
 
 # Editor directories and files
@@ -23,4 +30,6 @@ dist-ssr
 *.sln
 *.sw?
 
+# Test results
 playwright-report/
+test-results/

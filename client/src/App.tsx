@@ -2,29 +2,30 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Editor } from './components/Editor';
 import { CreateFileModal, RenameFileModal } from './components/Modal';
+import { WorkspaceModal } from './components/WorkspaceModal';
 import { useAutoSave } from './hooks/useAutoSave';
 import {
-  openDirectory,
-  listExcalidrawFilesRecursive,
-  readFile,
-  saveFile,
-  createFile,
-  deleteFile,
-  renameFile,
-  getParentDirectory,
-  flattenFiles,
-} from './utils/fileSystem';
-import { saveDirectoryHandle, getDirectoryHandle } from './utils/storage';
-import type { FileInfo, FolderInfo, ExcalidrawFileData } from './types';
+  selectWorkspace,
+  getWorkspace,
+  getFileContent,
+  saveFileContent,
+  createNewFile,
+  deleteFileById,
+  renameFileById,
+  encodeFileId,
+} from './utils/api';
+import { saveWorkspacePath, getWorkspacePath } from './utils/storage';
+import type { FileInfo, FolderInfo, ExcalidrawFileData } from './utils/api';
 import './App.css';
 
 function App() {
-  const [directoryHandle, setDirectoryHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null);
   const [fileTree, setFileTree] = useState<FolderInfo | null>(null);
   const [currentFile, setCurrentFile] = useState<FileInfo | null>(null);
   const [excalidrawData, setExcalidrawData] = useState<ExcalidrawFileData | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<FileInfo | null>(null);
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
@@ -36,30 +37,40 @@ function App() {
   const currentFileRef = useRef<FileInfo | null>(null);
   currentFileRef.current = currentFile;
 
-  // Load saved directory on mount
+  // Load saved workspace on mount
   useEffect(() => {
-    const loadSavedDirectory = async () => {
+    const loadSavedWorkspace = async () => {
       try {
-        const handle = await getDirectoryHandle();
-        if (handle) {
-          setDirectoryHandle(handle);
-          const tree = await listExcalidrawFilesRecursive(handle);
-          setFileTree(tree);
+        const savedPath = getWorkspacePath();
+        if (savedPath) {
+          const { rootFolder } = await getWorkspace();
+          if (rootFolder) {
+            setWorkspacePath(savedPath);
+            setFileTree(rootFolder);
+          } else {
+            // Workspace not set on server, prompt user
+            setIsWorkspaceModalOpen(true);
+          }
+        } else {
+          // No saved workspace, prompt user
+          setIsWorkspaceModalOpen(true);
         }
       } catch (error) {
-        console.error('Failed to load saved directory:', error);
+        console.error('Failed to load saved workspace:', error);
+        setIsWorkspaceModalOpen(true);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadSavedDirectory();
+    loadSavedWorkspace();
   }, []);
 
   const handleSave = useCallback(async () => {
     if (currentFileRef.current && currentDataRef.current && isDirty) {
       try {
-        await saveFile(currentFileRef.current.handle, currentDataRef.current);
+        const fileId = encodeFileId(currentFileRef.current.path);
+        await saveFileContent(fileId, currentDataRef.current);
         setIsDirty(false);
         console.log('File saved:', currentFileRef.current.name);
       } catch (error) {
@@ -71,29 +82,30 @@ function App() {
 
   useAutoSave(isDirty, handleSave);
 
-  const handleOpenDirectory = async () => {
+  const handleSelectWorkspace = async (path: string) => {
     try {
-      // Save current file before switching directory
+      // Save current file before switching workspace
       if (isDirty && currentFile && excalidrawData) {
-        await saveFile(currentFile.handle, excalidrawData);
+        const fileId = encodeFileId(currentFile.path);
+        await saveFileContent(fileId, excalidrawData);
       }
 
-      const handle = await openDirectory();
-      setDirectoryHandle(handle);
-      await saveDirectoryHandle(handle);
-
-      const tree = await listExcalidrawFilesRecursive(handle);
-      setFileTree(tree);
+      const { workspacePath: newPath, rootFolder } = await selectWorkspace(path);
+      setWorkspacePath(newPath);
+      saveWorkspacePath(newPath);
+      setFileTree(rootFolder);
       setCurrentFile(null);
       setExcalidrawData(null);
       setIsDirty(false);
       setCurrentFolderPath(null);
     } catch (error) {
-      if ((error as Error).name !== 'AbortError') {
-        console.error('Failed to open directory:', error);
-        alert('Failed to open directory');
-      }
+      console.error('Failed to select workspace:', error);
+      alert('Failed to select workspace: ' + (error as Error).message);
     }
+  };
+
+  const handleOpenDirectory = () => {
+    setIsWorkspaceModalOpen(true);
   };
 
   const handleSelectFile = async (file: FileInfo) => {
@@ -102,24 +114,25 @@ function App() {
     try {
       // Save current file before switching
       if (isDirty && currentFile && excalidrawData) {
-        await saveFile(currentFile.handle, excalidrawData);
+        const fileId = encodeFileId(currentFile.path);
+        await saveFileContent(fileId, excalidrawData);
         setIsDirty(false);
       }
 
-      const data = await readFile(file.handle);
+      const fileId = encodeFileId(file.path);
+      const { content } = await getFileContent(fileId);
       console.log('File loaded:', file.name, {
-        elementsCount: data.elements?.length,
-        hasAppState: !!data.appState,
-        hasFiles: !!data.files,
+        elementsCount: content.elements?.length,
+        hasAppState: !!content.appState,
+        hasFiles: !!content.files,
       });
       setCurrentFile(file);
-      setExcalidrawData(data);
+      setExcalidrawData(content);
       setIsDirty(false);
-      // Update current folder to the file's parent folder
       setCurrentFolderPath(file.parentPath);
     } catch (error) {
       console.error('Failed to read file:', error);
-      alert('Failed to read file');
+      alert('Failed to read file: ' + (error as Error).message);
     }
   };
 
@@ -128,56 +141,57 @@ function App() {
   };
 
   const handleOpenCreateModal = (folderPath: string | null) => {
-    if (!directoryHandle) {
-      alert('Please open a folder first');
+    if (!workspacePath) {
+      alert('Please select a workspace first');
       return;
     }
-    // Use the passed folder path, or fallback to current folder or root
     setCreateInFolderPath(folderPath || currentFolderPath || fileTree?.path || null);
     setIsCreateModalOpen(true);
   };
 
   const handleCreateFile = async (name: string) => {
-    if (!directoryHandle || !fileTree) return;
+    if (!workspacePath || !fileTree) return;
 
     try {
       // Save current file before creating new one
       if (isDirty && currentFile && excalidrawData) {
-        await saveFile(currentFile.handle, excalidrawData);
+        const fileId = encodeFileId(currentFile.path);
+        await saveFileContent(fileId, excalidrawData);
       }
 
-      // Get the target directory handle
       const targetPath = createInFolderPath || fileTree.path;
-      const targetDirHandle = await getParentDirectory(directoryHandle, targetPath);
+      const { fileId, file } = await createNewFile(name, targetPath);
 
-      const fileHandle = await createFile(targetDirHandle, name);
-      const tree = await listExcalidrawFilesRecursive(directoryHandle);
-      setFileTree(tree);
+      // Refresh file tree
+      const { rootFolder } = await getWorkspace();
+      if (rootFolder) {
+        setFileTree(rootFolder);
 
-      // Open the newly created file
-      const files = flattenFiles(tree);
-      const newFile = files.find((f) => f.handle === fileHandle);
-      if (newFile) {
-        const data = await readFile(newFile.handle);
-        setCurrentFile(newFile);
-        setExcalidrawData(data);
+        // Open the newly created file
+        const { content } = await getFileContent(fileId);
+        setCurrentFile(file);
+        setExcalidrawData(content);
         setIsDirty(false);
-        setCurrentFolderPath(newFile.parentPath);
+        setCurrentFolderPath(file.parentPath);
       }
     } catch (error) {
       console.error('Failed to create file:', error);
-      alert('Failed to create file');
+      alert('Failed to create file: ' + (error as Error).message);
     }
   };
 
   const handleDeleteFile = async (file: FileInfo) => {
-    if (!directoryHandle) return;
+    if (!workspacePath) return;
 
     try {
-      const parentHandle = await getParentDirectory(directoryHandle, file.parentPath);
-      await deleteFile(parentHandle, file.name);
-      const tree = await listExcalidrawFilesRecursive(directoryHandle);
-      setFileTree(tree);
+      const fileId = encodeFileId(file.path);
+      await deleteFileById(fileId);
+
+      // Refresh file tree
+      const { rootFolder } = await getWorkspace();
+      if (rootFolder) {
+        setFileTree(rootFolder);
+      }
 
       if (currentFile?.path === file.path) {
         setCurrentFile(null);
@@ -186,7 +200,7 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to delete file:', error);
-      alert('Failed to delete file');
+      alert('Failed to delete file: ' + (error as Error).message);
     }
   };
 
@@ -195,34 +209,33 @@ function App() {
   };
 
   const handleRenameFile = async (newName: string) => {
-    if (!directoryHandle || !renameTarget) return;
+    if (!workspacePath || !renameTarget) return;
 
     try {
       // Save current file before renaming if it's the one being renamed
       if (isDirty && currentFile?.path === renameTarget.path && excalidrawData) {
-        await saveFile(currentFile.handle, excalidrawData);
+        const fileId = encodeFileId(currentFile.path);
+        await saveFileContent(fileId, excalidrawData);
       }
 
-      const parentHandle = await getParentDirectory(directoryHandle, renameTarget.parentPath);
-      const newHandle = await renameFile(parentHandle, renameTarget.name, newName);
+      const oldFileId = encodeFileId(renameTarget.path);
+      const { file: updatedFile } = await renameFileById(oldFileId, newName);
 
       // Refresh file tree
-      const tree = await listExcalidrawFilesRecursive(directoryHandle);
-      setFileTree(tree);
+      const { rootFolder } = await getWorkspace();
+      if (rootFolder) {
+        setFileTree(rootFolder);
+      }
 
       // If the renamed file was the current file, update it
       if (currentFile?.path === renameTarget.path) {
-        const files = flattenFiles(tree);
-        const updatedFile = files.find((f) => f.handle === newHandle);
-        if (updatedFile) {
-          setCurrentFile(updatedFile);
-        }
+        setCurrentFile(updatedFile);
       }
 
       setIsDirty(false);
     } catch (error) {
       console.error('Failed to rename file:', error);
-      alert('Failed to rename file');
+      alert('Failed to rename file: ' + (error as Error).message);
     }
   };
 
@@ -271,6 +284,12 @@ function App() {
         onSelectFolder={handleSelectFolder}
       />
       <Editor fileKey={currentFile?.path ?? null} data={excalidrawData} onChange={handleEditorChange} />
+
+      <WorkspaceModal
+        isOpen={isWorkspaceModalOpen}
+        onClose={() => setIsWorkspaceModalOpen(false)}
+        onConfirm={handleSelectWorkspace}
+      />
 
       <CreateFileModal
         isOpen={isCreateModalOpen}

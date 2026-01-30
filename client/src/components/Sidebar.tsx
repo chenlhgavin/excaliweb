@@ -1,8 +1,12 @@
 import { useState, useMemo } from 'react';
-import type { FileInfo, FolderInfo } from '../types';
-import { isFolder } from '../types';
-import { countFiles, searchFiles } from '../utils/fileSystem';
+import type { FileInfo, FolderInfo } from '../utils/api';
+import { countFiles, searchFiles } from '../utils/fileTreeUtils';
 import './Sidebar.css';
+
+// Type guard
+function isFolder(item: FileInfo | FolderInfo): item is FolderInfo {
+  return 'children' in item;
+}
 
 // App Logo
 const AppLogo = () => (
