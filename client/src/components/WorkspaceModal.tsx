@@ -51,7 +51,6 @@ interface WorkspaceModalProps {
 }
 
 export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalProps) {
-  const [path, setPath] = useState('');
   const [currentPath, setCurrentPath] = useState('');
   const [parentPath, setParentPath] = useState<string | null>(null);
   const [directories, setDirectories] = useState<DirectoryItem[]>([]);
@@ -111,7 +110,6 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
       setCurrentPath(result.currentPath);
       setParentPath(result.parentPath);
       setDirectories(result.directories);
-      setPath(result.currentPath);
     } catch (err) {
       console.error('Failed to load directory:', err);
       setError('Failed to load directory');
@@ -139,19 +137,16 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const trimmedPath = path.trim();
-
-    if (!trimmedPath) {
+    if (!currentPath) {
       setError('Please select a directory');
       return;
     }
 
-    onConfirm(trimmedPath);
+    onConfirm(currentPath);
     handleClose();
   };
 
   const handleClose = () => {
-    setPath('');
     setCurrentPath('');
     setDirectories([]);
     setError('');
@@ -243,7 +238,7 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
 
               {/* Directory List */}
               <div className="directory-list-container">
-                <div className="section-label">Directories</div>
+                <div className="section-label">Subdirectories</div>
                 <div className="directory-list">
                   {loading ? (
                     <div className="loading-state">Loading...</div>
@@ -284,12 +279,6 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
                   )}
                 </div>
               </div>
-
-              {/* Selected Path Preview */}
-              <div className="selected-path">
-                <div className="section-label">Selected Directory</div>
-                <div className="path-preview">{path || 'None selected'}</div>
-              </div>
             </div>
           </div>
 
@@ -297,7 +286,7 @@ export function WorkspaceModal({ isOpen, onClose, onConfirm }: WorkspaceModalPro
             <button type="button" className="btn btn-secondary" onClick={handleClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={!path.trim()}>
+            <button type="submit" className="btn btn-primary" disabled={!currentPath}>
               Select Directory
             </button>
           </div>
