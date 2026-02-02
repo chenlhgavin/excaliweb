@@ -81,28 +81,89 @@ Access the app at `http://localhost:5173` (frontend proxies API requests to back
 
 ### Production Deployment with Docker
 
-The recommended production deployment uses Docker with a multi-stage build:
+The recommended production deployment uses Docker with a multi-stage build and volume mounting for data persistence.
+
+#### Quick Start with docker-compose (Recommended)
 
 ```bash
-# Build and deploy using Makefile
-make deploy
+# Create data directory
+mkdir -p ./data
 
-# Or manually
-docker build -t excaliweb:latest .
-docker run -d -p 5174:80 --name excaliweb-app excaliweb:latest
+# Start the application
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop the application
+docker-compose down
 ```
 
 Access the app at `http://localhost:5174`
 
-#### Docker Commands (via Makefile)
+#### Using Makefile
 
 ```bash
+# Deploy with default data directory (./data)
+make deploy
+
+# Deploy with custom data directory
+make deploy DATA_DIR=/path/to/your/drawings
+
+# Other commands
 make help       # Show all available commands
 make build      # Build Docker image
-make deploy     # Build and deploy container
 make status     # Check container status
 make logs       # View container logs
 make clean      # Stop and remove container
+```
+
+#### Manual Docker Commands
+
+```bash
+# Create data directory
+mkdir -p ./data
+
+# Build the image
+docker build -t excaliweb:latest .
+
+# Run with volume mount
+docker run -d \
+  --name excaliweb-app \
+  -p 5174:80 \
+  -v $(pwd)/data:/app/data \
+  -e DATA_DIR=/app/data \
+  -e DEFAULT_WORKSPACE=true \
+  --restart unless-stopped \
+  excaliweb:latest
+```
+
+#### Data Persistence
+
+ExcaliWeb supports volume mounting for persistent data storage:
+
+- **Data Directory**: All drawings are stored in `/app/data` inside the container
+- **Default Workspace**: When `DEFAULT_WORKSPACE=true`, the app automatically creates and uses a default workspace
+- **Volume Mount**: Mount a local directory to `/app/data` to persist data across container restarts
+
+```
+Host Machine                    Container
+./data/                    →    /app/data/
+└── my-workspace/               └── my-workspace/
+    ├── Welcome.excalidraw          ├── Welcome.excalidraw
+    ├── project-a.excalidraw        ├── project-a.excalidraw
+    └── subfolder/                  └── subfolder/
+        └── draft.excalidraw            └── draft.excalidraw
+```
+
+#### Data Backup
+
+```bash
+# Backup data directory
+tar -czf excalidraw-backup-$(date +%Y%m%d).tar.gz ./data
+
+# Restore from backup
+tar -xzf excalidraw-backup-20260202.tar.gz
 ```
 
 The Docker deployment includes:
@@ -112,6 +173,8 @@ The Docker deployment includes:
 - **Supervisor** for process management
 - **Health checks** for monitoring
 - **Auto-restart** on failures
+- **Volume mounting** for data persistence
+- **Path isolation** for security
 
 ## Usage
 
@@ -215,9 +278,13 @@ excaliweb/
 
 ### Workspace Endpoints
 
+- `GET /api/workspace/default` - Get default workspace configuration
+  - Returns: `{ enabled: boolean, path?: string, name?: string, dataDir?: string }`
+
 - `POST /api/workspace/select` - Select a workspace directory
   - Body: `{ path: string }`
   - Returns: `{ workspacePath: string, rootFolder: FolderInfo }`
+  - Note: When `DATA_DIR` is configured, path must be within the data directory
 
 - `GET /api/workspace` - Get current workspace file tree
   - Returns: `{ rootFolder: FolderInfo | null }`
@@ -258,17 +325,20 @@ excaliweb/
 
 - `GET /api/filesystem/list?path=<path>` - List directories
   - Returns: `{ currentPath: string, parentPath: string | null, directories: DirectoryItem[] }`
+  - Note: When `DATA_DIR` is configured, browsing is restricted to the data directory
 
-- `GET /api/filesystem/home` - Get user home directory
+- `GET /api/filesystem/home` - Get user home directory (or DATA_DIR if configured)
   - Returns: `{ path: string }`
 
 - `GET /api/filesystem/common` - Get common directories
   - Returns: `{ directories: Array<{ name: string, path: string }> }`
+  - Note: When `DATA_DIR` is configured, only returns data directory and its subdirectories
 
 ### Health Check
 
 - `GET /health` - Health check endpoint
-  - Returns: `{ status: "ok" }`
+  - Returns: `{ server: "ok", workspace: "ok" | "not configured", dataDir: "ok" | "inaccessible" }`
+  - Returns HTTP 200 if all checks pass, HTTP 503 if data directory is inaccessible
 
 ## Development
 
@@ -320,14 +390,39 @@ npm run build:all
 - `PORT` - Server port (default: 3001)
 - `CLIENT_URL` - Frontend URL for CORS (default: http://localhost:5173)
 - `NODE_ENV` - Environment (development/production)
+- `DATA_DIR` - Data directory path for file storage (default: /app/data)
+- `DEFAULT_WORKSPACE` - Enable default workspace auto-initialization (default: false, set to "true" to enable)
+- `DEFAULT_WORKSPACE_NAME` - Name of the default workspace folder (default: my-workspace)
+
+#### Docker Environment Variables
+
+When deploying with Docker, these environment variables are automatically configured:
+
+| Variable | Default Value | Description |
+|----------|---------------|-------------|
+| `DATA_DIR` | `/app/data` | Container path for data storage |
+| `DEFAULT_WORKSPACE` | `true` | Auto-create and use default workspace |
+| `DEFAULT_WORKSPACE_NAME` | `my-workspace` | Default workspace folder name |
+| `NODE_ENV` | `production` | Node.js environment |
+| `PORT` | `3001` | Backend server port |
+| `CLIENT_URL` | `http://localhost` | Frontend URL for CORS |
 
 ## Security Considerations
 
 - **Path Validation**: All file paths are validated to prevent directory traversal attacks
 - **Workspace Scoping**: File operations are restricted to the selected workspace directory
+- **Data Directory Isolation**: When `DATA_DIR` is configured, all file operations are strictly limited to this directory
 - **CORS**: Configured to only accept requests from the frontend origin
 - **Input Sanitization**: File names and paths are sanitized before file system operations
 - **No Authentication**: Currently designed for local/trusted environments only
+
+### Container Security
+
+When running in Docker with `DATA_DIR` configured:
+- All file operations are isolated to the mounted data directory
+- Users cannot browse or access files outside the data directory
+- Path traversal attacks are blocked at multiple levels (workspace and data directory)
+- The application automatically creates the default workspace within the secure boundary
 
 ## Browser Compatibility
 
@@ -390,6 +485,43 @@ make status
 make clean
 make deploy
 ```
+
+### Data Directory Permission Issues
+
+If you encounter permission errors when accessing files:
+
+```bash
+# Check data directory permissions
+ls -la ./data
+
+# Fix permissions (if needed)
+chmod -R 755 ./data
+
+# Or change ownership to current user
+sudo chown -R $(id -u):$(id -g) ./data
+```
+
+### Files Not Persisting After Container Restart
+
+Make sure you're mounting the data directory correctly:
+
+```bash
+# Verify volume mount
+docker inspect excaliweb-app | grep -A 10 "Mounts"
+
+# Check if data directory exists on host
+ls -la ./data
+
+# Redeploy with explicit data directory
+make deploy DATA_DIR=$(pwd)/data
+```
+
+### Cannot Access Directories Outside Data Directory
+
+This is expected behavior when `DATA_DIR` is configured. The application is designed to restrict all file operations to the mounted data directory for security. If you need to access files from a different location:
+
+1. Move the files to your data directory, or
+2. Change the `DATA_DIR` mount point to include the desired location
 
 ## Contributing
 
