@@ -410,9 +410,14 @@ export function Sidebar({
         </div>
 
         {fileTree && (
-          <div className="current-directory">
+          <div 
+            className={`current-directory clickable ${currentFolderPath === fileTree.path || currentFolderPath === null ? 'selected' : ''}`}
+            onClick={() => onSelectFolder(fileTree.path)}
+            title={`Click to select root folder: ${fileTree.name}`}
+          >
             <FolderOpenIcon />
             <span className="directory-name" title={fileTree.name}>{fileTree.name}</span>
+            <span className="root-hint">(root)</span>
           </div>
         )}
 

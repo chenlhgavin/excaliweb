@@ -237,6 +237,26 @@
   color: #5558e3;
   font-size: 13px;
   border: 1px solid rgba(99, 102, 241, 0.12);
+  transition: all 0.15s ease;
+}
+
+.current-directory.clickable {
+  cursor: pointer;
+}
+
+.current-directory.clickable:hover {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+
+.current-directory.selected {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.12) 100%);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #b45309;
+}
+
+.current-directory.selected svg {
+  color: #f59e0b;
 }
 
 .current-directory svg {
@@ -250,6 +270,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+
+.root-hint {
+  font-size: 11px;
+  font-weight: 500;
+  color: #999;
+  opacity: 0.8;
 }
 
 .file-items {
