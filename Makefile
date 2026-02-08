@@ -56,6 +56,8 @@ deploy: ## Rebuild and run container (stop existing if running)
 		-v $(DATA_DIR):/app/data \
 		-e DATA_DIR=/app/data \
 		-e DEFAULT_WORKSPACE=true \
+		-e PUID=$(shell id -u) \
+		-e PGID=$(shell id -g) \
 		--restart unless-stopped \
 		$(IMAGE_NAME):$(DOCKER_TAG)
 	@echo ""

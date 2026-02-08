@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "cd client && npm run dev",
-    "dev:server": "cd server && npm run dev",
+    "dev:server": "DATA_DIR=$(pwd)/data DEFAULT_WORKSPACE=true npm run dev --prefix server",
     "dev:all": "npm run dev:server & npm run dev",
     "build": "cd client && npm run build",
     "build:server": "cd server && npm run build",

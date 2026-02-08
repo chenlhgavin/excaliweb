@@ -39,8 +39,8 @@ RUN npm run build
 # ============ Stage 3: Nginx + Node.js Production Image ============
 FROM node:20-alpine
 
-# Install nginx, supervisor, and wget for health check
-RUN apk add --no-cache nginx supervisor wget
+# Install nginx, supervisor, wget for health check, and su-exec for user switching
+RUN apk add --no-cache nginx supervisor wget su-exec
 
 WORKDIR /app
 
@@ -65,8 +65,14 @@ COPY supervisord.conf /etc/supervisord.conf
 # Create log directory and data directory
 RUN mkdir -p /var/log /app/data
 
-# Environment variables for data directory
+# Environment variables for data directory and user mapping
 ENV DATA_DIR=/app/data
+ENV PUID=1000
+ENV PGID=1000
+
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Declare volume (for documentation)
 VOLUME ["/app/data"]
@@ -78,5 +84,5 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
 
-# Start supervisor
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+# Use entrypoint for PUID/PGID handling
+ENTRYPOINT ["/entrypoint.sh"]
