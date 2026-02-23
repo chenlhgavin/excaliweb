@@ -1,9 +1,9 @@
 feature:
   slug: update-readme
   created_at: 2026-02-23T04:02:37.019137798Z
-  updated_at: 2026-02-23T04:04:58.355501033Z
+  updated_at: 2026-02-23T04:12:16.736112359Z
 status: in_progress
-current_phase: 1
+current_phase: 3
 git:
   worktree_path: .trees/update-readme
   branch: feature/update-readme
@@ -23,28 +23,38 @@ phases:
   details: {}
 - name: review
   kind: quality
-  status: running
+  status: completed
   started_at: 2026-02-23T04:04:58.356152622Z
-  turns: 0
-  cost_usd: 0.0
+  completed_at: 2026-02-23T04:11:02.276201247Z
+  turns: 18
+  cost_usd: 0.49060275
   cost:
-    input_tokens: 0
-    output_tokens: 0
-  duration_secs: 0
-  details: {}
+    input_tokens: 1
+    output_tokens: 1061
+  duration_secs: 363
+  details:
+    issues_found: 3
+    issues_resolved: 3
+    rounds: 3
 - name: verify
   kind: quality
-  status: pending
-  turns: 0
-  cost_usd: 0.0
+  status: completed
+  started_at: 2026-02-23T04:11:02.276863727Z
+  completed_at: 2026-02-23T04:12:16.736111516Z
+  turns: 14
+  cost_usd: 0.22195524999999983
   cost:
     input_tokens: 0
-    output_tokens: 0
-  duration_secs: 0
-  details: {}
+    output_tokens: 1124
+  duration_secs: 74
+  details:
+    attempts: 18
+    checks_passed: 18
+    checks_total: 18
 - name: update-docs
   kind: quality
-  status: pending
+  status: running
+  started_at: 2026-02-23T04:12:16.736805436Z
   turns: 0
   cost_usd: 0.0
   cost:
