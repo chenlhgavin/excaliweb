@@ -1,228 +1,123 @@
 # ExcaliWeb
 
-A self-hosted web-based file manager and editor for [Excalidraw](https://excalidraw.com/) drawings. Browse, create, and manage `.excalidraw` files with folder hierarchies, auto-save, and Docker deployment support.
+A self-hosted web application wrapping [Excalidraw](https://excalidraw.com/) with persistent file storage and folder management.
 
 ## Features
 
-- **File Management** - Create, rename, delete `.excalidraw` files and folders
-- **Folder Navigation** - Recursive folder tree with expand/collapse
-- **Full Excalidraw Editor** - All drawing tools, shapes, and collaboration features
-- **Auto-save** - Changes saved automatically every 10 seconds
-- **Quick Save** - `Ctrl+S` / `Cmd+S` for instant save
-- **Path Isolation** - All file operations restricted to the data directory
-- **Docker Ready** - One-command deployment with PUID/PGID user mapping
+- File and folder management — create, rename, delete `.excalidraw` files and folders
+- Full Excalidraw editor — all drawing tools, shapes, and export options
+- Folder navigation with hierarchical tree
+- Auto-save every 10 seconds, plus quick save with `Ctrl+S` / `Cmd+S`
+- Workspace switching
+- Single-container Docker deployment
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) (or Docker + Make)
+- [Git](https://git-scm.com/) (to clone the repository)
 
 ## Quick Start
-
-### Development
 
 ```bash
 git clone https://github.com/yourusername/excaliweb.git
 cd excaliweb
-
-# Install dependencies
-npm run install:all
-
-# Start frontend + backend
-npm run dev:all
+make deploy
 ```
 
-Open `http://localhost:5173`. The backend automatically uses `data/` as the default workspace.
+Open `http://localhost:5174` in your browser.
 
-### Docker Deployment
+Run `make logs` to verify the application started successfully.
+
+## Configuration
+
+### Custom port
 
 ```bash
-# Using Makefile (recommended)
-make deploy
+make deploy PORT=8080
+```
 
-# Or using docker-compose
+The application will be available at `http://localhost:8080`.
+
+### Custom data directory
+
+```bash
+make deploy DATA_DIR=/path/to/drawings
+```
+
+### File ownership (PUID/PGID)
+
+`make deploy` automatically detects your host UID and GID so that files created inside the container match your host user. To override manually:
+
+```bash
+make deploy PUID=1000 PGID=1000
+```
+
+### Using docker-compose
+
+As an alternative to Make:
+
+```bash
 docker-compose -f docker/docker-compose.yml up -d
 ```
 
-Open `http://localhost:5174`.
+To customize the port, volume mount, or environment variables, edit `docker/docker-compose.yml` directly. Note that the compose file does not auto-detect PUID/PGID — add them to the `environment` section if needed.
 
-## Architecture
-
-```
-Browser  →  Nginx (static files)  →  /
-         →  Nginx (reverse proxy) →  /api/*  →  Express.js  →  File System
-```
-
-- **Frontend**: React 19 + TypeScript + Vite 7 + Excalidraw 0.18
-- **Backend**: Express 4 + TypeScript + Node.js 20
-- **Deployment**: Docker + Nginx + Supervisor + PUID/PGID user mapping
-
-## Project Structure
-
-```
-excaliweb/
-├── client/                      # Frontend (React + Vite)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Editor.tsx       # Excalidraw editor wrapper
-│   │   │   ├── Sidebar.tsx      # File tree navigation
-│   │   │   ├── Modal.tsx        # File/folder creation & rename modals
-│   │   │   └── WorkspaceModal.tsx # Directory browser
-│   │   ├── hooks/
-│   │   │   └── useAutoSave.ts   # Auto-save logic
-│   │   ├── utils/
-│   │   │   ├── api.ts           # Backend API client
-│   │   │   ├── storage.ts       # LocalStorage persistence
-│   │   │   └── fileTreeUtils.ts # Tree helpers
-│   │   ├── App.tsx              # Main app component
-│   │   └── main.tsx             # Entry point
-│   ├── vite.config.ts           # Vite config (dev proxy to :3001)
-│   └── package.json
-│
-├── server/                      # Backend (Express)
-│   ├── src/
-│   │   ├── routes/
-│   │   │   ├── workspace.ts     # Workspace selection
-│   │   │   ├── files.ts         # File CRUD
-│   │   │   └── filesystem.ts    # Directory browsing
-│   │   ├── services/
-│   │   │   └── fileSystem.ts    # File operations + path validation
-│   │   ├── middleware/
-│   │   │   └── errorHandler.ts  # Error & request logging
-│   │   ├── types/
-│   │   │   └── index.ts         # Shared types
-│   │   └── server.ts            # Express server setup
-│   └── package.json
-│
-├── data/                        # Default workspace (Git tracked)
-│   └── .gitkeep
-│
-├── docker/                      # Docker deployment
-│   ├── Dockerfile               # Multi-stage build
-│   ├── docker-compose.yml       # Compose config
-│   ├── entrypoint.sh            # PUID/PGID user mapping
-│   ├── nginx.conf               # Reverse proxy config
-│   └── supervisord.conf         # Process manager config
-│
-├── specs/                       # Design documents
-│   ├── idea.md
-│   ├── 0001-spec.md
-│   └── 0002-volume-mount.md
-│
-├── .dockerignore                # Docker build context exclusions
-├── Makefile                     # Docker operation shortcuts
-├── package.json                 # Root scripts (dev:all, install:all, etc.)
-└── README.md
-```
-
-## Data Directory
-
-All `.excalidraw` files are stored in the `data/` directory. Both local development and Docker deployment use this directory as the default workspace.
-
-```
-data/
-├── Welcome.excalidraw
-├── project-a.excalidraw
-└── subfolder/
-    └── draft.excalidraw
-```
-
-- **Local dev**: `data/` is relative to the project root, tracked by Git
-- **Docker**: Host `data/` is mounted to container `/app/data`
-- **Security**: All file operations are restricted to this directory and its subdirectories
-
-## Docker Deployment
-
-### Makefile Commands
-
-```bash
-make help       # Show all commands
-make build      # Build Docker image
-make deploy     # Build + run (auto-detects UID/GID)
-make status     # Check container status
-make logs       # View logs (follow mode)
-make clean      # Stop + remove container and image
-```
-
-Custom options:
-
-```bash
-make deploy DATA_DIR=/path/to/drawings    # Custom data directory
-make deploy PUID=1000 PGID=1000          # Custom user mapping
-make deploy PORT=8080                     # Custom port
-```
-
-### File Permissions (PUID/PGID)
-
-Files created inside the container are owned by the user specified via `PUID`/`PGID`. `make deploy` automatically passes your current UID/GID, so new files match your host user.
-
-### Environment Variables
+### Environment variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
-| `DATA_DIR` | `/app/data` | Data storage path (container) |
+|---|---|---|
+| `DATA_DIR` | `/app/data` | Data storage path inside the container |
 | `DEFAULT_WORKSPACE` | `true` | Auto-load workspace on start |
 | `PUID` | `1000` | File owner UID |
 | `PGID` | `1000` | File owner GID |
-| `PORT` | `3001` | Backend server port |
+| `PORT` | `3001` | Backend server port (internal) |
 | `NODE_ENV` | `production` | Node.js environment |
 
-## API
+## Data Storage
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/workspace/default` | Get default workspace config |
-| `POST` | `/api/workspace/select` | Set workspace directory |
-| `GET` | `/api/workspace` | Get current file tree |
-| `GET` | `/api/files/:fileId` | Get file content |
-| `PUT` | `/api/files/:fileId` | Save file content |
-| `POST` | `/api/files` | Create new file |
-| `POST` | `/api/files/folder` | Create new folder |
-| `DELETE` | `/api/files/:fileId` | Delete file |
-| `DELETE` | `/api/files/folder/:folderId` | Delete folder |
-| `PATCH` | `/api/files/:fileId/rename` | Rename file |
-| `GET` | `/api/filesystem/list` | Browse directories |
-| `GET` | `/api/filesystem/home` | Get home/data directory |
-| `GET` | `/api/filesystem/common` | Get quick-access directories |
-| `GET` | `/health` | Health check |
+All `.excalidraw` files live in the mounted data directory. By default this is `./data` on the host, mapped to `/app/data` inside the container.
 
-## Development
+The directory contains plain `.excalidraw` JSON files organized in folders — easy to back up, migrate, or version-control.
 
-### Available Scripts
+PUID/PGID ensures files created in the container match your host user ownership, avoiding permission mismatches.
 
-```bash
-npm run dev:all      # Start frontend + backend together
-npm run dev          # Frontend only (port 5173)
-npm run dev:server   # Backend only (port 3001, uses ./data)
-npm run install:all  # Install client + server dependencies
-npm run build:all    # Build client + server
-npm run lint         # Lint frontend code
-```
+## Makefile Reference
 
-### Security
-
-- Path validation prevents directory traversal attacks
-- `DATA_DIR` isolation restricts all file operations to the data directory
-- CORS configured to accept only frontend origin
-- Container backend runs as non-root user (via `su-exec`)
+| Target | Description |
+|---|---|
+| `make help` | Show available commands |
+| `make build` | Build the Docker image |
+| `make deploy` | Build and run the container |
+| `make status` | Check container status |
+| `make logs` | View container logs (follow mode) |
+| `make clean` | Stop and remove container and image |
 
 ## Troubleshooting
 
-**Port already in use**:
+**Port already in use**
+
+The default port is 5174. If it's occupied, either free it or deploy on a different port:
 
 ```bash
-# Kill processes on default ports
-lsof -ti:3001 -ti:5173 | xargs kill -9
+make deploy PORT=8080
 ```
 
-**Docker permission issues**:
+**Docker permission issues**
+
+If files created by the container have wrong ownership, redeploy with your current UID/GID:
 
 ```bash
-# Redeploy with correct UID/GID
 make deploy PUID=$(id -u) PGID=$(id -g)
 ```
 
-**Container won't start**:
+**Container won't start**
+
+Check the logs, clean up, and redeploy:
 
 ```bash
-make logs    # Check error output
-make clean   # Full cleanup
-make deploy  # Rebuild from scratch
+make logs
+make clean
+make deploy
 ```
 
 ## License
@@ -231,7 +126,7 @@ MIT
 
 ## Acknowledgments
 
-- [Excalidraw](https://excalidraw.com/) - The whiteboard engine
-- [Vite](https://vitejs.dev/) - Build tooling
-- [React](https://react.dev/) - UI framework
-- [Express](https://expressjs.com/) - Backend framework
+- [Excalidraw](https://excalidraw.com/) — The whiteboard engine
+- [Vite](https://vitejs.dev/) — Build tooling
+- [React](https://react.dev/) — UI framework
+- [Express](https://expressjs.com/) — Backend framework
