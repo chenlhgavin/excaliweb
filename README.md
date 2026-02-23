@@ -19,7 +19,7 @@ A self-hosted web application wrapping [Excalidraw](https://excalidraw.com/) wit
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/excaliweb.git
+git clone https://github.com/chenlhgavin/excaliweb.git
 cd excaliweb
 make deploy
 ```

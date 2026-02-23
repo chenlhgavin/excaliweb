@@ -1,5 +1,6 @@
 
 
+
 # Verification Plan: update-readme
 
 ## Automated Checks
@@ -89,9 +90,9 @@
 
 ## Integration Points
 
-- [ ] `README.md` is the only file modified — no other files should be created or changed
+- [ ] `README.md` is the only user-facing file modified — no other user-facing files should be created or changed (`.coda/` files are excluded from this constraint as they are internal CODA tracking artifacts)
 - [ ] The `.coda.md` file is not modified (it continues to serve as internal reference)
-- [ ] No new files are created (no `CONTRIBUTING.md`, no `docs/` files)
+- [ ] No new user-facing files are created (no `CONTRIBUTING.md`, no `docs/` files)
 
 ## Performance (if applicable)
 
