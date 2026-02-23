@@ -69,8 +69,8 @@
   - Expected: All targets listed: `help`, `build`, `deploy`, `status`, `logs`, `clean`
 
 - [ ] Scenario 13: Troubleshooting commands are correct
-  - Input: Verify each troubleshooting command is syntactically valid
-  - Expected: Port kill command uses correct ports, `make deploy PUID=$(id -u) PGID=$(id -g)` syntax is valid, `make clean` / `make deploy` sequence is correct
+  - Input: Verify each troubleshooting command against the README
+  - Expected: "Port already in use" suggests `make deploy PORT=8080`, "Docker permission issues" uses `make deploy PUID=$(id -u) PGID=$(id -g)`, "Container won't start" uses `make logs` / `make clean` / `make deploy` recovery flow — all syntactically valid
 
 ### Prerequisites Section
 
