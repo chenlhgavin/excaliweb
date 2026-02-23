@@ -1,0 +1,20 @@
+{
+  "name": "excaliweb",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "cd client && npm run dev",
+    "dev:server": "DATA_DIR=$(pwd)/data DEFAULT_WORKSPACE=true npm run dev --prefix server",
+    "dev:all": "npm run dev:server & npm run dev",
+    "build": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "build:all": "npm run build:server && npm run build",
+    "install:all": "cd client && npm install && cd ../server && npm install",
+    "lint": "cd client && npm run lint",
+    "preview": "cd client && npm run preview"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1"
+  }
+}
