@@ -1,132 +1,173 @@
 # ExcaliWeb
 
-A self-hosted web application wrapping [Excalidraw](https://excalidraw.com/) with persistent file storage and folder management.
+A self-hosted file manager and editor for [Excalidraw](https://excalidraw.com/) files with
+filesystem-based persistence. Browse workspaces, create and organize drawings in folder
+hierarchies, and let auto-save keep your work safe — all running on your own server with
+no database or cloud dependency.
+
+<!-- TODO: Add a screenshot of the application and place it at docs/screenshot.png -->
+
+![ExcaliWeb Screenshot](docs/screenshot.png)
+
+---
 
 ## Features
 
-- File and folder management — create, rename, delete `.excalidraw` files and folders
-- Full Excalidraw editor — all drawing tools, shapes, and export options
-- Folder navigation with hierarchical tree
-- Auto-save every 10 seconds, plus quick save with `Ctrl+S` / `Cmd+S`
-- Workspace switching
-- Single-container Docker deployment
+- **Workspace browsing** — open any directory and navigate nested folder hierarchies
+- **Excalidraw editor** — full drawing toolset powered by Excalidraw 0.18
+- **Auto-save** — changes saved automatically every 10 seconds
+- **Keyboard save** — press Ctrl+S for an immediate manual save
+- **File management** — create, rename, and delete files and folders
+- **Session persistence** — remembers your last workspace and open file across sessions
+- **Docker deployment** — production-ready image with nginx reverse proxy and volume-based storage
+- **REST API** — server-side endpoints for all file and workspace operations
+
+---
 
 ## Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/) (or Docker + Make)
-- [Git](https://git-scm.com/) (to clone the repository)
+- **Docker** (recommended for production) — or:
+- **Node.js 20+** and **npm** (for local development)
+- A modern browser (Chrome, Firefox, Safari, Edge)
+
+---
 
 ## Quick Start
 
+### Docker (Recommended)
+
+The Docker image bundles the built frontend, backend, and an nginx reverse proxy into a
+single container. A local directory is mounted as a volume for persistent storage.
+
 ```bash
-git clone https://github.com/chenlhgavin/excaliweb.git
-cd excaliweb
-make deploy
+# Create a local directory for your drawings
+mkdir -p ./data
+
+# Build the image and start the container
+docker-compose up -d
 ```
 
-Open `http://localhost:5174` in your browser.
+Access the app at **http://localhost:5174**.
 
-Run `make logs` to verify the application started successfully.
+Your drawings are stored in the `./data` directory on the host and persist across
+container restarts. The container exposes port 5174 by default and maps it to the
+internal nginx server on port 80.
+
+To manage the running container:
+
+```bash
+docker-compose logs -f      # follow container logs
+docker-compose down         # stop and remove the container
+```
+
+You can also use `make deploy` to build the image and start the container in one step.
+Run `make help` to see all available Make targets (`build`, `deploy`, `status`, `logs`,
+`clean`).
+
+### Local Installation
+
+Run the application locally without Docker for development and debugging.
+
+```bash
+# Clone the repository
+git clone https://github.com/<your-username>/excaliweb.git
+cd excaliweb
+
+# Install dependencies for both client and server
+npm run install:all
+
+# Start the frontend and backend dev servers together
+npm run dev:all
+```
+
+The frontend dev server runs at **http://localhost:5173** and proxies API requests
+to the backend at **http://localhost:3001**.
+
+> **Tip:** You can also start the servers individually — `npm run dev` for the
+> Vite client dev server and `npm run dev:server` for the Express backend — if
+> you prefer separate terminal output.
+
+To create a production build without Docker:
+
+```bash
+npm run build:all
+```
+
+This compiles the TypeScript server and bundles the Vite client into static assets.
+
+---
 
 ## Configuration
 
-### Custom port
-
-```bash
-make deploy PORT=8080
-```
-
-The application will be available at `http://localhost:8080`.
-
-### Custom data directory
-
-```bash
-make deploy DATA_DIR=/path/to/drawings
-```
-
-### File ownership (PUID/PGID)
-
-`make deploy` automatically detects your host UID and GID so that files created inside the container match your host user. To override manually:
-
-```bash
-make deploy PUID=1000 PGID=1000
-```
-
-### Using docker-compose
-
-As an alternative to Make:
-
-```bash
-docker-compose -f docker/docker-compose.yml up -d
-```
-
-To customize the port, volume mount, or environment variables, edit `docker/docker-compose.yml` directly. Note that the compose file does not auto-detect PUID/PGID — add them to the `environment` section if needed.
-
-### Environment variables
+Key environment variables (set in `docker-compose.yml` or exported in your shell):
 
 | Variable | Default | Description |
-|---|---|---|
-| `DATA_DIR` | `/app/data` | Data storage path inside the container |
-| `DEFAULT_WORKSPACE` | `true` | Auto-load workspace on start |
-| `PUID` | `1000` | File owner UID |
-| `PGID` | `1000` | File owner GID |
-| `PORT` | `3001` | Backend server port (internal) |
-| `NODE_ENV` | `production` | Node.js environment |
+|----------|---------|-------------|
+| `DATA_DIR` | `/app/data` | Path where all drawings are stored |
+| `DEFAULT_WORKSPACE` | `true` (in Docker) | Auto-create a default workspace on startup |
+| `DEFAULT_WORKSPACE_NAME` | `my-workspace` | Name of the auto-created workspace folder |
+| `PORT` | `3001` | Backend server port |
 
-## Data Storage
+When `DATA_DIR` is set, all file operations are restricted to that directory for security.
+This prevents directory traversal and ensures the application cannot read or write files
+outside the configured storage boundary.
 
-All `.excalidraw` files live in the mounted data directory. By default this is `./data` on the host, mapped to `/app/data` inside the container.
+In development (without Docker), `DATA_DIR` is not set by default and the application
+allows browsing any directory accessible to the server process. Set `DATA_DIR` explicitly
+if you want to restrict access during local development as well.
 
-The directory contains plain `.excalidraw` JSON files organized in folders — easy to back up, migrate, or version-control.
+---
 
-PUID/PGID ensures files created in the container match your host user ownership, avoiding permission mismatches.
+## Tech Stack
 
-## Makefile Reference
+| Layer | Technologies |
+|-------|-------------|
+| Frontend | React 19, TypeScript, Vite, Excalidraw |
+| Backend | Node.js 20, Express, TypeScript |
+| Deployment | Docker, nginx, supervisord |
 
-| Target | Description |
-|---|---|
-| `make help` | Show available commands |
-| `make build` | Build the Docker image |
-| `make deploy` | Build and run the container |
-| `make status` | Check container status |
-| `make logs` | View container logs (follow mode) |
-| `make clean` | Stop and remove container and image |
+---
 
-## Troubleshooting
+## Development
 
-**Port already in use**
-
-The default port is 5174. If it's occupied, either free it or deploy on a different port:
+For coding standards, see [`CLAUDE.md`](CLAUDE.md). For architecture details and
+internal design documentation, see [`.coda.md`](.coda.md).
 
 ```bash
-make deploy PORT=8080
+npm run lint          # ESLint on the client code
+npm test              # Playwright end-to-end tests
+npm run build:all     # production build (client + server)
 ```
 
-**Docker permission issues**
+---
 
-If files created by the container have wrong ownership, redeploy with your current UID/GID:
+## Contributing
+
+Contributions are welcome! Here is the standard workflow:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Commit your changes and push the branch
+4. Open a Pull Request
+
+Before submitting, please make sure linting and tests pass:
 
 ```bash
-make deploy PUID=$(id -u) PGID=$(id -g)
+# Lint the client code
+npm run lint
+
+# Run end-to-end tests (requires Playwright browsers)
+npx playwright install   # first time only
+npm test
 ```
 
-**Container won't start**
+If you are adding a new feature, consider updating or adding Playwright tests in the
+`tests/` directory to cover the new behavior.
 
-Check the logs, clean up, and redeploy:
+For bug reports and feature requests, please open an issue on the GitHub repository.
 
-```bash
-make logs
-make clean
-make deploy
-```
+---
 
 ## License
 
-MIT
-
-## Acknowledgments
-
-- [Excalidraw](https://excalidraw.com/) — The whiteboard engine
-- [Vite](https://vitejs.dev/) — Build tooling
-- [React](https://react.dev/) — UI framework
-- [Express](https://expressjs.com/) — Backend framework
+MIT License
